@@ -1,0 +1,83 @@
+version: 3
+type: conversation
+steps:
+  - id: get_ecs_clusters
+    type: action
+    action:
+      store: aws
+      name: "ecs.ListClusters"
+      parameters: {}
+  - id: ecs_clusters
+    type: jq
+    # Split by / to cut long ARN format and take the last element which is the actual name of the service with the ARN prefix
+    jq: .get_ecs_clusters.clusterArns[] | split("/")[-1]
+  - id: ecs_cluster
+    type: input
+    value_type: enum
+    prompt: "Select the ECS cluster where your service is located at"
+    possible_values: ${ecs_clusters}
+  - id: get_ecs_services
+    type: action
+    action:
+      store: aws
+      name: ecs.ListServices
+      parameters:
+        cluster: ${ecs_cluster}
+  - id: ecs_services
+    type: jq
+    jq: .get_ecs_services.serviceArns[] | split("/")[-1]
+  - id: ecs_service
+    type: input
+    value_type: enum
+    prompt: "Select the ECS service you want to redeploy?"
+    possible_values: ${ecs_services}
+  - id: approval
+    prompt: "Let me know I got it all correctly. Are you sure you want to redeploy ecs service `${ecs_service}` in cluster `${ecs_cluster}`?"
+    type: input
+    value_type: boolean
+  - id: conditional_exit
+    type: condition
+    if:
+      arg: ${approval}
+      is: equals
+      arg2: "false"
+      then: exit
+      else: restart_service
+  - id: restart_service
+    type: action
+    action:
+      store: aws
+      name: ecs.UpdateService
+      parameters:
+        cluster: ${ecs_cluster}
+        service: ${ecs_service}
+        forceNewDeployment: true
+  - id: success
+    type: message
+    prompt: |
+      ✅ *Done!*
+      Restarted (force deployment) ECS service: *${ecs_service}* in cluster *${ecs_cluster}* succesfully!
+  - id: next_options
+    type: input
+    value_type: enum
+    prompt: "What would you like to do next?"
+    possible_values:
+      - View on AWS
+      - Thats it, thanks
+  - id: condition
+    type: condition
+    if:
+      arg: ${next_options}
+      is: equals
+      arg2: "View on AWS"
+      then: view_on_aws
+      else: exit
+  - id: view_on_aws
+    type: message
+    prompt: |
+      *From the browser:*
+       <https://eu-west-1.console.aws.amazon.com/ecs/home?#/clusters/${ecs_cluster}/services/${ecs_service}/deployments|Click here>
+      *From the AWS CLI:*
+      ```aws ecs describe-services --cluster ${ecs_cluster} --services ${ecs_service}```
+  - id: exit
+    type: exit
