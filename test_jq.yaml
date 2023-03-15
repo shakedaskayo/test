@@ -1,0 +1,53 @@
+author: "testing@kubiya.ai"
+version: 3
+type: "conversation"
+name: "Destroy weka cluster"
+steps:
+  - type: "jq"
+    id: "active_workspaces_exists"
+    label: ""
+    jq: "true"
+  - type: jq
+    id: "get_active_workspaces"
+    label: ""
+    jq: '["test"]'
+  - type: "condition"
+    id: "are_there_active_workspaces"
+    label: ""
+    if:
+      arg: "${active_workspaces_exists}"
+      is: "equals"
+      arg2: "true"
+      then:
+        - type: "input"
+          value_type: "enum"
+          id: "select_workspace"
+          label: ""
+          prompt: "Select Workspace"
+          possible_values: "${get_active_workspaces}"
+        - type: "input"
+          value_type: "boolean"
+          id: "are_you_sure"
+          label: ""
+          prompt: "Are you sure you want to destroy the following cluster:\n* '${select_workspace}'"
+        - type: "condition"
+          id: "do_execute_destroy"
+          label: ""
+          if:
+            arg: "${are_you_sure}"
+            is: "equals"
+            arg2: "true"
+            then:
+              - type: "jq"
+                id: "destroy_workspace"
+                label: ""
+                jq: "true"
+            else: []
+      else:
+        - type: "message"
+          id: "no_workspaces_to_destroy"
+          label: ""
+          prompt: "There are no active workspaces to destroy"
+  - type: "exit"
+    id: "exit"
+    label: ""
